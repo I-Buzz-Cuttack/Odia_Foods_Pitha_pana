@@ -3,18 +3,17 @@ import api from "../api/axios";
 import { useAuth } from "./AuthContext";
 
 const CouponContext = createContext(null);
-const defaultCoupon = { code: "", description: "", visible: false };
 
 export const CouponProvider = ({ children }) => {
   const { user } = useAuth();
-  const [coupon, setCoupon] = useState(defaultCoupon);
+  const [coupons, setCoupons] = useState([]); // publicly visible coupons
 
   const refreshPublic = async () => {
     try {
-      const { data } = await api.get("/coupon");
-      setCoupon(data);
+      const { data } = await api.get("/coupons");
+      setCoupons(data);
     } catch {
-      setCoupon(defaultCoupon);
+      setCoupons([]);
     }
   };
 
@@ -22,24 +21,35 @@ export const CouponProvider = ({ children }) => {
     if (user) refreshPublic();
   }, [user]);
 
-  const fetchAdminCoupon = async () => {
-    const { data } = await api.get("/admin/coupon");
-    return {
-      code: data.code || "",
-      description: data.description || "",
-      visible: !!data.is_visible,
-      discountType: data.discount_type || "percent",
-      discountValue: Number(data.discount_value) || 0
-    };
+  const fetchAdminCoupons = async () => {
+    const { data } = await api.get("/admin/coupons");
+    return data.map((c) => ({
+      id: c.id,
+      code: c.code || "",
+      description: c.description || "",
+      visible: !!c.is_visible,
+      discountType: c.discount_type || "percent",
+      discountValue: Number(c.discount_value) || 0,
+    }));
   };
 
-  const saveCoupon = async ({ code, description, visible, discountType, discountValue }) => {
-    await api.put("/admin/coupon", { code, description, visible, discountType, discountValue });
+  const createCoupon = async ({ code, description, visible, discountType, discountValue }) => {
+    await api.post("/admin/coupons", { code, description, visible, discountType, discountValue });
     await refreshPublic();
   };
 
-  const toggleVisibility = async () => {
-    await api.patch("/admin/coupon/visibility");
+  const updateCoupon = async (id, { code, description, visible, discountType, discountValue }) => {
+    await api.put(`/admin/coupons/${id}`, { code, description, visible, discountType, discountValue });
+    await refreshPublic();
+  };
+
+  const deleteCoupon = async (id) => {
+    await api.delete(`/admin/coupons/${id}`);
+    await refreshPublic();
+  };
+
+  const toggleVisibility = async (id) => {
+    await api.patch(`/admin/coupons/${id}/visibility`);
     await refreshPublic();
   };
 
@@ -48,7 +58,15 @@ export const CouponProvider = ({ children }) => {
     return data;
   };
 
-  const value = { coupon, saveCoupon, toggleVisibility, fetchAdminCoupon, applyCoupon };
+  const value = {
+    coupons,
+    fetchAdminCoupons,
+    createCoupon,
+    updateCoupon,
+    deleteCoupon,
+    toggleVisibility,
+    applyCoupon,
+  };
   return <CouponContext.Provider value={value}>{children}</CouponContext.Provider>;
 };
 

@@ -30,7 +30,7 @@ export default function Orders() {
                 </div>
                 <div className="text-right">
                   <p className="font-bold">{money(order.total)}</p>
-                  <p className="text-sm text-palm">{order.status} · {order.payment_status}</p>
+                  <p className="text-sm text-sindoor">{order.status} · {order.payment_status}</p>
                 </div>
               </div>
               <button onClick={() => loadInvoice(order.id)} className="btn-secondary mt-4 py-2"><FileText size={16} /> View Invoice</button>

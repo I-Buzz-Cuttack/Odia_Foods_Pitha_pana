@@ -1,25 +1,12 @@
-import {
-  BarChart3,
-  Boxes,
-  CalendarDays,
-  IndianRupee,
-  TrendingUp,
-  Users,
-} from "lucide-react";
+import {BarChart3,Boxes,CalendarDays,IndianRupee,TrendingUp,Users,} from "lucide-react";
 import { useEffect, useState } from "react";
-import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+import {Area,AreaChart,CartesianGrid,ResponsiveContainer,Tooltip,XAxis,YAxis,} from "recharts";
 import api from "../api/axios";
 import { money } from "../utils/format";
 import InvoicePrintModal from "../components/InvoicePrintModal";
-import { useCoupon } from "../store/CouponContext";
+import ManageProducts from "../components/admin/ManageProducts";
+import AddFoodItem from "../components/admin/AddFoodItem";
+import CouponManager from "../components/admin/CouponManager";
 
 const today = new Date().toISOString().slice(0, 10);
 const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
@@ -40,7 +27,7 @@ const initialForm = {
   storage: "",
   shelf_life_days: 7,
   price: "",
-  price_unit: "piece",
+  price_unit: "Per Piece",
   availability: "In Stock",
   sizes: "250g, 500g",
   image_url: "",
@@ -85,6 +72,11 @@ export default function AdminDashboard() {
   const [form, setForm] = useState(initialForm);
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
+  const [products, setProducts] = useState([]);
+  const [productsLoading, setProductsLoading] = useState(true);
+  const [productsError, setProductsError] = useState("");
+  const [editingId, setEditingId] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
   // const [notifications, setNotifications] = useState([]);
   const [selectedDate, setSelectedDate] = useState("");
   const [dateOrders, setDateOrders] = useState([]);
@@ -93,34 +85,32 @@ export default function AdminDashboard() {
   const [chartData, setChartData] = useState([]);
   const [chartLoading, setChartLoading] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
-const { saveCoupon, toggleVisibility, fetchAdminCoupon } = useCoupon();
 
-const [couponForm, setCouponForm] = useState({
-  code: "",
-  description: "",
-  discountType: "percent",
-  discountValue: 0,
-});
+  const [couponVisible, setCouponVisible] = useState(false);
 
-const [couponVisible, setCouponVisible] = useState(false);
-
-useEffect(() => {
-  fetchAdminCoupon().then((data) => {
-    setCouponForm({
-      code: data.code,
-      description: data.description,
-      discountType: data.discountType,
-      discountValue: data.discountValue,
-    });
-    setCouponVisible(data.visible);
-  });
-}, []);
 
   const loadStats = () =>
     api
       .get("/admin/stats")
       .then(({ data }) => setStats(data))
       .catch(() => setStats(null));
+
+  const loadProducts = () => {
+    setProductsLoading(true);
+    setProductsError("");
+    return api
+      .get("/admin/products")
+      .then(({ data }) => setProducts(data))
+      .catch((error) => {
+        setProducts([]);
+        setProductsError(
+          error.response?.data?.message ||
+            error.message ||
+            "Could not load products."
+        );
+      })
+      .finally(() => setProductsLoading(false));
+  };
 
   const loadChart = async (days) => {
     setChartLoading(true);
@@ -143,10 +133,11 @@ useEffect(() => {
     }
   };
 
-  useEffect(() => {
-    loadStats();
-    loadChart(1);
-  }, []);
+    useEffect(() => {
+      loadStats();
+      loadChart(1);
+      loadProducts();
+    }, []);
 
   // useEffect(() => {
   //   const fetchNotifs = async () => {
@@ -186,20 +177,84 @@ useEffect(() => {
     event.preventDefault();
     setSaving(true);
     setMessage("");
+    const payload = {
+      ...form,
+      shelf_life_days: Number(form.shelf_life_days),
+      price: Number(form.price),
+      stock: Number(form.stock),
+    };
     try {
-      await api.post("/admin/products", {
-        ...form,
-        shelf_life_days: Number(form.shelf_life_days),
-        price: Number(form.price),
-        stock: Number(form.stock),
-      });
-      setMessage("Food item added successfully.");
+      if (editingId) {
+        await api.put(`/admin/products/${editingId}`, payload);
+        setMessage("Food item updated successfully.");
+      } else {
+        await api.post("/admin/products", payload);
+        setMessage("Food item added successfully.");
+      }
       setForm(initialForm);
+      setEditingId(null);
       await loadStats();
+      await loadProducts();
     } catch (error) {
-      setMessage(error.response?.data?.message || "Could not add food item.");
+      setMessage(error.response?.data?.message || "Could not save food item.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const startEdit = (product) => {
+    setEditingId(product.id);
+    setForm({
+      name: product.name || "",
+      slug: product.slug || "",
+      category: product.category || "Pitha",
+      short_description: product.short_description || "",
+      description: product.description || "",
+      cultural_significance: product.cultural_significance || "",
+      ingredients: product.ingredients || "",
+      preparation: product.preparation || "",
+      region_origin: product.region_origin || "Odisha",
+      nutrition: product.nutrition || "",
+      storage: product.storage || "",
+      shelf_life_days: product.shelf_life_days ?? 7,
+      price: product.price ?? "",
+      price_unit: product.price_unit || "Per Piece",
+      availability: product.availability || "In Stock",
+      sizes: product.sizes || "",
+      image_url: product.image_url || "",
+      festival_tag: product.festival_tag || "",
+      stock: product.stock ?? 20,
+      manufacturing_date: product.manufacturing_date
+        ? String(product.manufacturing_date).slice(0, 10)
+        : today,
+      expiry_date: product.expiry_date
+        ? String(product.expiry_date).slice(0, 10)
+        : nextWeek,
+    });
+    setMessage("");
+    document.getElementById("add-food-form")?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setForm(initialForm);
+    setMessage("");
+  };
+
+  const deleteProduct = async (product) => {
+    if (!window.confirm(`Delete "${product.name}"? This can't be undone.`)) return;
+    setDeletingId(product.id);
+    setMessage("");
+    try {
+      await api.delete(`/admin/products/${product.id}`);
+      setMessage(`"${product.name}" was deleted.`);
+      if (editingId === product.id) cancelEdit();
+      await loadStats();
+      await loadProducts();
+    } catch (error) {
+      setMessage(error.response?.data?.message || "Could not delete food item.");
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -237,86 +292,7 @@ useEffect(() => {
       </div>
 
       {/* Coupon Management (admin only) */}
-      <section className="mt-8 rounded-xl border border-temple/10 bg-white p-6 shadow-sm">
-        <h2 className="font-display text-xl font-bold text-temple">
-          Coupon Management
-        </h2>
-        <p className="mt-1 text-xs text-ink/50">
-          Customers only see this after login when you switch it ON.
-        </p>
-        <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          <input
-            className="input"
-            placeholder="Coupon code, e.g. RAJA20"
-            value={couponForm.code}
-            onChange={(e) =>
-              setCouponForm({ ...couponForm, code: e.target.value })
-            }
-          />
-          <input
-            className="input"
-            placeholder="Description, e.g. 20% off Raja orders"
-            value={couponForm.description}
-            onChange={(e) =>
-              setCouponForm({ ...couponForm, description: e.target.value })
-            }
-          />
-            <select
-              className="input"
-              value={couponForm.discountType}
-              onChange={(e) =>
-                setCouponForm({
-                  ...couponForm,
-                  discountType: e.target.value,
-                })
-              }
-            >
-              <option value="percent">Percentage off (%)</option>
-              <option value="flat">Flat amount off (₹)</option>
-            </select>
-
-            <input
-              className="input"
-              type="number"
-              min="0"
-              step="0.01"
-              placeholder={
-                couponForm.discountType === "percent"
-                  ? "e.g. 10 for 10%"
-                  : "e.g. 50 for ₹50 off"
-              }
-              value={couponForm.discountValue}
-              onChange={(e) =>
-                setCouponForm({
-                  ...couponForm,
-                  discountValue: e.target.value,
-                })
-              }
-            />
-        </div>
-        <div className="mt-4 flex flex-wrap items-center gap-4">
-          <button
-            className="btn-primary"
-            onClick={async () => {
-              await saveCoupon({ ...couponForm, visible: couponVisible });
-            }}
-          >
-            Save Coupon
-          </button>
-          <button
-            className={`btn-secondary ${couponVisible ? "bg-palm text-white hover:bg-palm hover:text-white" : ""}`}
-            onClick={async () => {
-              await toggleVisibility();
-              const data = await fetchAdminCoupon();
-              setCouponVisible(data.visible);
-            }}
-          >
-            {couponVisible
-              ? "Visible to Customers (ON)"
-              : "Hidden from Customers (OFF)"}
-          </button>
-        </div>
-      </section>
+      <CouponManager />
 
       {/* Sales Chart + Orders by Date side by side */}
       <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_380px]">
@@ -629,209 +605,24 @@ useEffect(() => {
         </section>
       </div>
 
-      {/* Add Food Item */}
-      <section className="mt-6 rounded-xl border border-temple/10 bg-white p-6 shadow-soft">
-        <h2 className="font-display text-2xl font-bold text-temple">
-          Add Food Item
-        </h2>
-        <p className="mt-2 text-sm text-ink/65">
-          Create a new Pitha, Pana, sweet, or traditional Odisha delicacy for
-          the marketplace.
-        </p>
-        <form onSubmit={submitFood} className="mt-6 grid gap-4">
-          <div className="grid gap-4 md:grid-cols-3">
-            <input
-              className="input"
-              required
-              placeholder="Food name"
-              value={form.name}
-              onChange={(e) => update("name", e.target.value)}
-            />
-            <input
-              className="input"
-              required
-              placeholder="Slug"
-              value={form.slug}
-              onChange={(e) => update("slug", e.target.value)}
-            />
-            <select
-              className="input"
-              value={form.category}
-              onChange={(e) => update("category", e.target.value)}
-            >
-              <option>Pitha</option>
-              <option>Pana</option>
-              <option>Sweet</option>
-              <option>Festival Special</option>
-            </select>
-          </div>
-          <div className="grid gap-4 md:grid-cols-5">
+      <ManageProducts
+        products={products}
+        productsLoading={productsLoading}
+        productsError={productsError}
+        deletingId={deletingId}
+        onEdit={startEdit}
+        onDelete={deleteProduct}
+      />
 
-  {/* Price */}
-  <input
-    className="input"
-    required
-    type="number"
-    placeholder="Price"
-    value={form.price}
-    onChange={(e) => update("price", e.target.value)}
-  />
-
-  {/* Price Unit */}
-  <select
-    className="input"
-    value={form.price_unit}
-    onChange={(e) => update("price_unit", e.target.value)}
-  >
-    <option value="piece">Per Piece</option>
-    <option value="kg">Per Kg</option>
-    <option value="gram">Per Gram</option>
-    <option value="100g">Per 100g</option>
-    <option value="250g">Per 250g</option>
-    <option value="500g">Per 500g</option>
-    <option value="litre">Per Litre</option>
-    <option value="dozen">Per Dozen</option>
-  </select>
-
-  {/* Stock */}
-  <input
-    className="input"
-    required
-    type="number"
-    placeholder="Stock"
-    value={form.stock}
-    onChange={(e) => update("stock", e.target.value)}
-  />
-
-  {/* Shelf Life */}
-  <input
-    className="input"
-    required
-    type="number"
-    placeholder="Shelf life days"
-    value={form.shelf_life_days}
-    onChange={(e) => update("shelf_life_days", e.target.value)}
-  />
-
-  {/* Availability */}
-  <select
-    className="input"
-    value={form.availability}
-    onChange={(e) => update("availability", e.target.value)}
-  >
-    <option>In Stock</option>
-    <option>Seasonal</option>
-    <option>Out of Stock</option>
-  </select>
-
-</div>
-          <div className="grid gap-4 md:grid-cols-3">
-            <input
-              className="input"
-              required
-              placeholder="Sizes, e.g. 250g, 500g"
-              value={form.sizes}
-              onChange={(e) => update("sizes", e.target.value)}
-            />
-            <input
-              className="input"
-              required
-              placeholder="Festival tag"
-              value={form.festival_tag}
-              onChange={(e) => update("festival_tag", e.target.value)}
-            />
-            <input
-              className="input"
-              required
-              placeholder="Region of origin"
-              value={form.region_origin}
-              onChange={(e) => update("region_origin", e.target.value)}
-            />
-          </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            <input
-              className="input"
-              required
-              type="date"
-              value={form.manufacturing_date}
-              onChange={(e) => update("manufacturing_date", e.target.value)}
-            />
-            <input
-              className="input"
-              required
-              type="date"
-              value={form.expiry_date}
-              onChange={(e) => update("expiry_date", e.target.value)}
-            />
-          </div>
-          <input
-            className="input"
-            required
-            placeholder="Image URL from Cloudinary, MinIO, or any public image URL"
-            value={form.image_url}
-            onChange={(e) => update("image_url", e.target.value)}
-          />
-          <input
-            className="input"
-            required
-            placeholder="Short description"
-            value={form.short_description}
-            onChange={(e) => update("short_description", e.target.value)}
-          />
-          <div className="grid gap-4 md:grid-cols-2">
-            <textarea
-              className="input min-h-28"
-              required
-              placeholder="Detailed description"
-              value={form.description}
-              onChange={(e) => update("description", e.target.value)}
-            />
-            <textarea
-              className="input min-h-28"
-              required
-              placeholder="Cultural significance"
-              value={form.cultural_significance}
-              onChange={(e) => update("cultural_significance", e.target.value)}
-            />
-            <textarea
-              className="input min-h-28"
-              required
-              placeholder="Ingredients"
-              value={form.ingredients}
-              onChange={(e) => update("ingredients", e.target.value)}
-            />
-            <textarea
-              className="input min-h-28"
-              required
-              placeholder="Preparation process"
-              value={form.preparation}
-              onChange={(e) => update("preparation", e.target.value)}
-            />
-            <textarea
-              className="input min-h-28"
-              required
-              placeholder="Nutritional information"
-              value={form.nutrition}
-              onChange={(e) => update("nutrition", e.target.value)}
-            />
-            <textarea
-              className="input min-h-28"
-              required
-              placeholder="Storage instructions"
-              value={form.storage}
-              onChange={(e) => update("storage", e.target.value)}
-            />
-          </div>
-          {message && (
-            <p className="rounded-md bg-haldi/20 p-3 text-sm font-semibold text-temple">
-              {message}
-            </p>
-          )}
-          <button disabled={saving} className="btn-primary w-fit">
-            {saving ? "Adding..." : "Add Food Item"}
-          </button>
-        </form>
-      </section>
+      <AddFoodItem
+        form={form}
+        update={update}
+        submitFood={submitFood}
+        saving={saving}
+        editingId={editingId}
+        cancelEdit={cancelEdit}
+        message={message}
+      />
       {selectedOrder && (
         <InvoicePrintModal
           order={selectedOrder}

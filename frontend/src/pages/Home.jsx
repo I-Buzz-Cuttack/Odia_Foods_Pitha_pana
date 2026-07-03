@@ -15,7 +15,7 @@ export default function Home() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const { isAdmin } = useAuth();
-  const { coupon } = useCoupon();
+  const { coupons } = useCoupon();
 
   useEffect(() => {
     api
@@ -27,12 +27,18 @@ export default function Home() {
 
   return (
     <>
-    {coupon.visible && !isAdmin && coupon.code && (
-  <div className="bg-haldi text-ink text-center py-3 px-4 font-semibold">
-    🎉 Use code <span className="font-bold">{coupon.code}</span>
-    {coupon.description ? ` — ${coupon.description}` : ""}
-  </div>
-)}
+      {!isAdmin && coupons.length > 0 && (
+        <div className="bg-haldi text-ink py-3 font-semibold overflow-hidden whitespace-nowrap">
+          <div className="inline-flex gap-12 animate-marquee">
+            {[...coupons, ...coupons].map((c, i) => (
+              <span key={`${c.id}-${i}`}>
+                🎉 Use code <span className="font-bold">{c.code}</span>
+                {c.description ? ` — ${c.description}` : ""}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
       <section className="relative isolate min-h-[720px] overflow-hidden bg-temple text-white">
         <img src={heroImage} alt="Traditional Odisha Pithas and Panas" className="absolute inset-0 -z-10 h-full w-full object-cover" />
         <div className="absolute inset-0 -z-10 bg-gradient-to-r from-temple via-temple/80 to-temple/20" />
@@ -95,7 +101,7 @@ export default function Home() {
               >
                 <span className="text-sm font-bold uppercase tracking-[0.18em] text-clay">Collection</span>
                 <h3 className="mt-3 font-display text-2xl font-bold text-temple">{festival}</h3>
-                <p className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-palm">
+                <p className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-sindoor">
                   Explore <ArrowRight size={16} className="transition group-hover:translate-x-1" />
                 </p>
               </Link>

@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS products (
   storage VARCHAR(255) NOT NULL,
   shelf_life_days INT NOT NULL,
   price DECIMAL(10,2) NOT NULL,
+  price_unit VARCHAR(20) NOT NULL DEFAULT 'Per Piece',
   availability VARCHAR(40) NOT NULL,
   sizes VARCHAR(120) NOT NULL,
   image_url VARCHAR(600) NOT NULL,

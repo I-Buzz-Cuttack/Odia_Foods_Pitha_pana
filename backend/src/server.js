@@ -285,9 +285,12 @@ app.post("/api/orders", auth, async (req, res, next) => {
     let discount = 0;
     let appliedCouponCode = null;
     if (couponCode) {
-      const rows = await query("SELECT * FROM coupons ORDER BY id DESC LIMIT 1");
+      const rows = await query(
+        "SELECT * FROM coupons WHERE is_visible = 1 AND LOWER(code) = LOWER(:code) LIMIT 1",
+        { code: String(couponCode).trim() }
+      );
       const coupon = rows[0];
-      if (coupon && coupon.is_visible && coupon.code.toLowerCase() === String(couponCode).trim().toLowerCase()) {
+      if (coupon) {
         discount = coupon.discount_type === "percent"
           ? (itemsTotal * Number(coupon.discount_value)) / 100
           : Number(coupon.discount_value);
@@ -382,11 +385,11 @@ app.post("/api/admin/products", auth, adminOnly, async (req, res, next) => {
     const result = await query(
       `INSERT INTO products
        (name, slug, category, short_description, description, cultural_significance, ingredients, preparation,
-        region_origin, nutrition, storage, shelf_life_days, price, availability, sizes, image_url, festival_tag,
+        region_origin, nutrition, storage, shelf_life_days, price, price_unit, availability, sizes, image_url, festival_tag,
         stock, manufacturing_date, expiry_date)
        VALUES
        (:name, :slug, :category, :short_description, :description, :cultural_significance, :ingredients, :preparation,
-        :region_origin, :nutrition, :storage, :shelf_life_days, :price, :availability, :sizes, :image_url, :festival_tag,
+        :region_origin, :nutrition, :storage, :shelf_life_days, :price, :price_unit, :availability, :sizes, :image_url, :festival_tag,
         :stock, :manufacturing_date, :expiry_date)`,
       req.body
     );
@@ -401,16 +404,44 @@ app.post("/api/admin/products", auth, adminOnly, async (req, res, next) => {
   }
 });
 
+app.get("/api/admin/products", auth, adminOnly, async (_req, res, next) => {
+  try {
+    const rows = await query("SELECT * FROM products ORDER BY created_at DESC");
+    res.json(rows);
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.put("/api/admin/products/:id", auth, adminOnly, async (req, res, next) => {
   try {
     await query(
       `UPDATE products
-       SET price = :price, stock = :stock, availability = :availability
+       SET name = :name, slug = :slug, category = :category, short_description = :short_description,
+           description = :description, cultural_significance = :cultural_significance, ingredients = :ingredients,
+           preparation = :preparation, region_origin = :region_origin, nutrition = :nutrition, storage = :storage,
+           shelf_life_days = :shelf_life_days, price = :price, price_unit = :price_unit, availability = :availability,
+           sizes = :sizes, image_url = :image_url, festival_tag = :festival_tag, stock = :stock,
+           manufacturing_date = :manufacturing_date, expiry_date = :expiry_date
        WHERE id = :id`,
       { ...req.body, id: req.params.id }
     );
     res.json({ message: "Product updated" });
   } catch (error) {
+    next(error);
+  }
+});
+
+app.delete("/api/admin/products/:id", auth, adminOnly, async (req, res, next) => {
+  try {
+    await query("DELETE FROM products WHERE id = :id", { id: req.params.id });
+    res.json({ message: "Product deleted" });
+  } catch (error) {
+    if (error.code === "ER_ROW_IS_REFERENCED_2" || error.code === "ER_ROW_IS_REFERENCED") {
+      return res.status(409).json({
+        message: "This product has existing orders and can't be deleted. Set availability to 'Out of Stock' instead."
+      });
+    }
     next(error);
   }
 });
@@ -473,51 +504,82 @@ app.patch("/api/admin/notifications/:id/read", auth, adminOnly, async (req, res,
 });
 
 // Public: anyone (including logged-out) can hit this, but data only returns if admin made it visible
-app.get("/api/coupon", async (_req, res, next) => {
+// Public: anyone (including logged-out) can hit this; returns all coupons the admin has made visible
+app.get("/api/coupons", async (_req, res, next) => {
   try {
-    const rows = await query("SELECT code, description, is_visible FROM coupons ORDER BY id DESC LIMIT 1");
-    const coupon = rows[0];
-    if (!coupon || !coupon.is_visible) {
-      return res.json({ visible: false, code: "", description: "" });
-    }
-    res.json({ visible: true, code: coupon.code, description: coupon.description });
+    const rows = await query(
+      "SELECT id, code, description, discount_type, discount_value FROM coupons WHERE is_visible = 1 ORDER BY id DESC"
+    );
+    res.json(rows);
   } catch (error) {
     next(error);
   }
 });
 
-// Admin: view full coupon state (even when hidden)
-app.get("/api/admin/coupon", auth, adminOnly, async (_req, res, next) => {
+// Admin: list every coupon (visible or hidden)
+app.get("/api/admin/coupons", auth, adminOnly, async (_req, res, next) => {
   try {
-    const rows = await query("SELECT * FROM coupons ORDER BY id DESC LIMIT 1");
-    res.json(rows[0] || { code: "", description: "", is_visible: 0 });
+    const rows = await query("SELECT * FROM coupons ORDER BY id DESC");
+    res.json(rows);
   } catch (error) {
     next(error);
   }
 });
 
-// Admin: create/update coupon + set visibility
-app.put("/api/admin/coupon", auth, adminOnly, async (req, res, next) => {
+// Admin: create a new coupon
+app.post("/api/admin/coupons", auth, adminOnly, async (req, res, next) => {
   try {
     const { code, description = "", visible = false, discountType = "percent", discountValue = 0 } = req.body;
     if (!code) return res.status(400).json({ message: "Coupon code is required" });
     if (!["flat", "percent"].includes(discountType)) {
       return res.status(400).json({ message: "discountType must be 'flat' or 'percent'" });
     }
+    const result = await query(
+      "INSERT INTO coupons (code, description, discount_type, discount_value, is_visible) VALUES (:code, :description, :discountType, :discountValue, :visible)",
+      { code, description, discountType, discountValue, visible: visible ? 1 : 0 }
+    );
+    res.status(201).json({ message: "Coupon created", id: result.insertId });
+  } catch (error) {
+    next(error);
+  }
+});
 
-    const existing = await query("SELECT id FROM coupons ORDER BY id DESC LIMIT 1");
-    if (existing[0]) {
-      await query(
-        "UPDATE coupons SET code = :code, description = :description, discount_type = :discountType, discount_value = :discountValue, is_visible = :visible WHERE id = :id",
-        { code, description, discountType, discountValue, visible: visible ? 1 : 0, id: existing[0].id }
-      );
-    } else {
-      await query(
-        "INSERT INTO coupons (code, description, discount_type, discount_value, is_visible) VALUES (:code, :description, :discountType, :discountValue, :visible)",
-        { code, description, discountType, discountValue, visible: visible ? 1 : 0 }
-      );
+// Admin: update an existing coupon
+app.put("/api/admin/coupons/:id", auth, adminOnly, async (req, res, next) => {
+  try {
+    const { code, description = "", visible = false, discountType = "percent", discountValue = 0 } = req.body;
+    if (!code) return res.status(400).json({ message: "Coupon code is required" });
+    if (!["flat", "percent"].includes(discountType)) {
+      return res.status(400).json({ message: "discountType must be 'flat' or 'percent'" });
     }
-    res.json({ message: "Coupon saved" });
+    await query(
+      "UPDATE coupons SET code = :code, description = :description, discount_type = :discountType, discount_value = :discountValue, is_visible = :visible WHERE id = :id",
+      { code, description, discountType, discountValue, visible: visible ? 1 : 0, id: req.params.id }
+    );
+    res.json({ message: "Coupon updated" });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Admin: delete a coupon
+app.delete("/api/admin/coupons/:id", auth, adminOnly, async (req, res, next) => {
+  try {
+    await query("DELETE FROM coupons WHERE id = :id", { id: req.params.id });
+    res.json({ message: "Coupon deleted" });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Admin: toggle visibility for one coupon
+app.patch("/api/admin/coupons/:id/visibility", auth, adminOnly, async (req, res, next) => {
+  try {
+    const existing = await query("SELECT * FROM coupons WHERE id = :id", { id: req.params.id });
+    if (!existing[0]) return res.status(404).json({ message: "Coupon not found" });
+    const next_visible = existing[0].is_visible ? 0 : 1;
+    await query("UPDATE coupons SET is_visible = :v WHERE id = :id", { v: next_visible, id: req.params.id });
+    res.json({ message: "Visibility toggled", is_visible: next_visible });
   } catch (error) {
     next(error);
   }
@@ -529,9 +591,12 @@ app.post("/api/coupon/apply", async (req, res, next) => {
     const { code = "", amount = 0 } = req.body;
     if (!code.trim()) return res.status(400).json({ message: "Enter a coupon code" });
 
-    const rows = await query("SELECT * FROM coupons ORDER BY id DESC LIMIT 1");
+    const rows = await query(
+      "SELECT * FROM coupons WHERE is_visible = 1 AND LOWER(code) = LOWER(:code) LIMIT 1",
+      { code: code.trim() }
+    );
     const coupon = rows[0];
-    if (!coupon || !coupon.is_visible || coupon.code.toLowerCase() !== code.trim().toLowerCase()) {
+    if (!coupon) {
       return res.status(404).json({ message: "Invalid or expired coupon code" });
     }
 
@@ -547,19 +612,6 @@ app.post("/api/coupon/apply", async (req, res, next) => {
       discountValue: Number(coupon.discount_value),
       discount: Math.round(discount * 100) / 100
     });
-  } catch (error) {
-    next(error);
-  }
-});
-
-// Admin: toggle visibility only
-app.patch("/api/admin/coupon/visibility", auth, adminOnly, async (_req, res, next) => {
-  try {
-    const existing = await query("SELECT * FROM coupons ORDER BY id DESC LIMIT 1");
-    if (!existing[0]) return res.status(404).json({ message: "No coupon to toggle. Save one first." });
-    const next_visible = existing[0].is_visible ? 0 : 1;
-    await query("UPDATE coupons SET is_visible = :v WHERE id = :id", { v: next_visible, id: existing[0].id });
-    res.json({ message: "Visibility toggled", is_visible: next_visible });
   } catch (error) {
     next(error);
   }
@@ -634,23 +686,23 @@ app.get("/api/seed-data", async (req, res) => {
     for (const product of products) {
       await query(
         `INSERT IGNORE INTO products
-        (
-          name,slug,category,short_description,description,
-          cultural_significance,ingredients,preparation,
-          region_origin,nutrition,storage,shelf_life_days,
-          price,availability,sizes,image_url,festival_tag,
-          popularity,stock,manufacturing_date,expiry_date
-        )
-        VALUES
-        (
-          :name,:slug,:category,:short_description,:description,
-          :cultural_significance,:ingredients,:preparation,
-          :region_origin,:nutrition,:storage,:shelf_life_days,
-          :price,:availability,:sizes,:image_url,:festival_tag,
-          100,50,CURDATE(),
-          DATE_ADD(CURDATE(), INTERVAL :shelf_life_days DAY)
-        )`,
-        product
+      (
+        name,slug,category,short_description,description,
+        cultural_significance,ingredients,preparation,
+        region_origin,nutrition,storage,shelf_life_days,
+        price,price_unit,availability,sizes,image_url,festival_tag,
+        popularity,stock,manufacturing_date,expiry_date
+      )
+      VALUES
+      (
+        :name,:slug,:category,:short_description,:description,
+        :cultural_significance,:ingredients,:preparation,
+        :region_origin,:nutrition,:storage,:shelf_life_days,
+        :price,:price_unit,:availability,:sizes,:image_url,:festival_tag,
+        100,50,CURDATE(),
+        DATE_ADD(CURDATE(), INTERVAL :shelf_life_days DAY)
+      )`,
+        { price_unit: "Per Piece", ...product }
       );
     }
 

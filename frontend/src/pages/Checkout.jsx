@@ -83,9 +83,9 @@ export default function Checkout() {
           <div className="mt-5 border-t border-temple/10 pt-5">
             <p className="text-sm font-semibold text-ink/80">Coupon Code</p>
             {appliedCoupon ? (
-              <div className="mt-2 flex items-center justify-between rounded-md bg-palm/10 px-3 py-2 text-sm">
+              <div className="mt-2 flex items-center justify-between rounded-md bg-sindoor/10 px-3 py-2 text-sm">
                 <span>
-                  <span className="font-bold text-palm">{appliedCoupon.code}</span> applied — you saved {money(discount)}
+                  <span className="font-bold text-sindoor">{appliedCoupon.code}</span> applied — you saved {money(discount)}
                 </span>
                 <button type="button" className="text-xs font-semibold text-sindoor underline" onClick={removeCoupon}>
                   Remove
@@ -115,7 +115,7 @@ export default function Checkout() {
               <span>{money(preDiscountPayable)}</span>
             </div>
             {discount > 0 && (
-              <div className="flex justify-between text-palm">
+              <div className="flex justify-between text-sindoor">
                 <span>Coupon discount</span>
                 <span>-{money(discount)}</span>
               </div>

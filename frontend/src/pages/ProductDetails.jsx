@@ -110,7 +110,7 @@ export default function ProductDetails() {
             <span className="inline-flex items-center gap-2 rounded-md bg-white px-3 py-2 text-clay">
               <Star size={16} fill="currentColor" /> 4.8 rating
             </span>
-            <span className="inline-flex items-center gap-2 rounded-md bg-white px-3 py-2 text-palm">
+            <span className="inline-flex items-center gap-2 rounded-md bg-white px-3 py-2 text-sindoor">
               <PackageCheck size={16} /> {product.availability}
             </span>
             <span className="inline-flex items-center gap-2 rounded-md bg-white px-3 py-2 text-temple">
@@ -124,6 +124,9 @@ export default function ProductDetails() {
                 <p className="text-sm text-ink/55">Price starts at</p>
                 <p className="text-3xl font-bold text-ink">
                   {money(product.price)}
+                  {product.price_unit && (
+                    <span className="ml-1 text-base font-medium text-ink/50">/ {product.price_unit.replace("Per ", "")}</span>
+                  )}
                 </p>
               </div>
               <div className="text-right text-sm text-ink/65">

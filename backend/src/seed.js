@@ -36,9 +36,38 @@ const runStatements = async (sql) => {
   }
 };
 
+// Deletes ALL rows from every table so the database starts completely fresh
+// before the seed data is inserted again. Triggered with: node seed.js --reset
+const resetDatabase = async () => {
+  console.log("Resetting database: deleting all existing data...");
+  await query("SET FOREIGN_KEY_CHECKS = 0");
+  const tables = [
+    "order_items",
+    "orders",
+    "cart_items",
+    "wishlist_items",
+    "reviews",
+    "product_images",
+    "admin_notifications",
+    "coupons",
+    "knowledge_posts",
+    "products",
+    "users"
+  ];
+  for (const table of tables) {
+    await query(`TRUNCATE TABLE ${table}`);
+  }
+  await query("SET FOREIGN_KEY_CHECKS = 1");
+  console.log("All existing data deleted.");
+};
+
 const seed = async () => {
   const schema = await fs.readFile(path.join(__dirname, "schema.sql"), "utf8");
   await runStatements(schema);
+
+  if (process.argv.includes("--reset")) {
+    await resetDatabase();
+  }
 
   const adminHash = await bcrypt.hash("Admin@123", 10);
   const userHash = await bcrypt.hash("Customer@123", 10);
@@ -65,22 +94,24 @@ const seed = async () => {
     await query(
       `INSERT INTO products
        (name, slug, category, short_description, description, cultural_significance, ingredients,
-        preparation, region_origin, nutrition, storage, shelf_life_days, price, availability, sizes,
+        preparation, region_origin, nutrition, storage, shelf_life_days, price, price_unit, availability, sizes,
         image_url, festival_tag, popularity, stock, manufacturing_date, expiry_date)
        VALUES
        (:name, :slug, :category, :short_description, :description, :cultural_significance, :ingredients,
-        :preparation, :region_origin, :nutrition, :storage, :shelf_life_days, :price, :availability, :sizes,
+        :preparation, :region_origin, :nutrition, :storage, :shelf_life_days, :price, :price_unit, :availability, :sizes,
         :image_url, :festival_tag, :popularity, :stock, :manufacturing_date, :expiry_date)
        ON DUPLICATE KEY UPDATE
         category = VALUES(category), short_description = VALUES(short_description), description = VALUES(description),
         cultural_significance = VALUES(cultural_significance), ingredients = VALUES(ingredients),
         preparation = VALUES(preparation), region_origin = VALUES(region_origin), nutrition = VALUES(nutrition),
         storage = VALUES(storage), shelf_life_days = VALUES(shelf_life_days), price = VALUES(price),
+        price_unit = VALUES(price_unit),
         availability = VALUES(availability), sizes = VALUES(sizes), image_url = VALUES(image_url),
         festival_tag = VALUES(festival_tag), popularity = VALUES(popularity), stock = VALUES(stock),
         manufacturing_date = VALUES(manufacturing_date), expiry_date = VALUES(expiry_date)`,
       {
         ...product,
+        price_unit: product.price_unit || "Per Piece",
         popularity: 100 - index * 5,
         stock: product.availability === "Seasonal" ? 20 : 60,
         manufacturing_date: manufacturingDate.toISOString().slice(0, 10),

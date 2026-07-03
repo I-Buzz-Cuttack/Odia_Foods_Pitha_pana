@@ -43,6 +43,44 @@ export default function KnowledgeHub() {
         ))}
       </div>
 
+            <div className="mt-14 rounded-2xl border border-sindoor/20 bg-gradient-to-b from-haldi/10 to-white p-8 shadow-sm md:p-10">
+        <p className="font-semibold uppercase tracking-[0.2em] text-clay">Sacred Craft</p>
+        <h2 className="section-title mt-2">Made in the Temple: Purity, Hygiene & Spiritual Devotion</h2>
+
+        <div className="mt-6 space-y-5 text-ink/80">
+          <p className="leading-8">
+            Every Pitha and Pana that reaches your home begins its journey inside the temple kitchen, a space where
+            cooking itself is treated as an act of worship. Long before the first grain of rice is soaked, the
+            kitchen is cleansed with water and cow dung, the hearths are lit with sacred fire, and the cooks bathe
+            and dress in fresh, unstitched cotton cloth as a mark of purity. Nothing is tasted before it is offered;
+            the first portion of every preparation belongs to the deity alone.
+          </p>
+          <p className="leading-8">
+            Hygiene in the temple kitchen is not a modern checklist, it is centuries of ritual discipline. Rice and
+            lentils are washed multiple times in flowing water, vegetables are hand-picked and cleaned leaf by leaf,
+            and jaggery, ghee, and spices are stored in sealed earthen and brass containers to keep them free from
+            moisture and dust. Utensils are new or ritually purified before use, and the cooking area is kept free
+            of footwear, leather, and anything considered impure, so that cleanliness and sanctity move together at
+            every step.
+          </p>
+          <p className="leading-8">
+            The environment itself shapes the food. Priests chant mantras as the earthen pots are stacked one over
+            another on wood fire, cooking Mahaprasad entirely through steam and slow, even heat, without a single
+            pot touching the flame directly. The rhythmic sound of chanting, the fragrance of turmeric leaves and
+            camphor, and the glow of the temple lamps create a quiet, meditative atmosphere, so the food absorbs not
+            just heat and spice, but devotion. This is why Mahaprasad and temple-style Pithas are believed to carry
+            a taste that a home kitchen can rarely recreate.
+          </p>
+          <p className="leading-8">
+            When we craft our Pithas and Panas in this same spirit, we hold onto these traditions, steaming in
+            turmeric leaves, slow-baking in clay, sweetening only with jaggery, while keeping our kitchens as clean
+            and disciplined as a temple hearth. What you receive is not just a sweet or a snack, but a small piece
+            of Odisha's temple culture, prepared with the same care, cleanliness, and reverence it has carried for
+            generations.
+          </p>
+        </div>
+      </div>
+
       <div className="mt-10 grid gap-6 lg:grid-cols-3">
         {posts.map((post) => (
           <article key={post.id} className="rounded-lg border border-temple/10 bg-white p-6 shadow-sm">
