@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import Footer from "./components/Footer";
 import Navbar from "./components/Navbar";
 import AdminDashboard from "./pages/AdminDashboard";
+import AdminManage from "./pages/AdminManage";
 import Cart from "./pages/Cart";
 import Catalog from "./pages/Catalog";
 import Checkout from "./pages/Checkout";
@@ -45,6 +46,7 @@ export default function App() {
           <Route path="/checkout" element={<Protected><Checkout /></Protected>} />
           <Route path="/orders" element={<Protected><Orders /></Protected>} />
           <Route path="/admin" element={<Protected admin><AdminDashboard /></Protected>} />
+          <Route path="/admin/manage" element={<Protected admin><AdminManage /></Protected>} />
           <Route path="*" element={<Navigate to={user ? "/home" : "/"} replace />} />
         </Routes>
       </main>
