@@ -47,7 +47,7 @@ export default function AddFoodItem({
             <option>Festival Special</option>
           </select>
         </div>
-        <div className="grid gap-4 md:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-5">
           <input
             className="input"
             required
@@ -57,14 +57,42 @@ export default function AddFoodItem({
             onChange={(e) => update("price", e.target.value)}
           />
           <select
-            className="input"
-            required
-            value={form.price_unit}
-            onChange={(e) => update("price_unit", e.target.value)}
-          >
-            <option>Per Piece</option>
-            <option>Per Weight</option>
-          </select>
+  className="input"
+  required
+  value={form.price_unit}
+  onChange={(e) => update("price_unit", e.target.value)}
+>
+  {form.category === "Pitha" && (
+    <>
+      <option value="piece">Per Piece</option>
+      <option value="weight">Per Weight</option>
+    </>
+  )}
+
+  {form.category === "Pana" && (
+    <>
+      <option value="250ml">Per 250 ml</option>
+      <option value="500ml">Per 500 ml</option>
+      <option value="litre">Per Litre</option>
+    </>
+  )}
+
+  {form.category === "Sweet" && (
+    <>
+      <option value="piece">Per Piece</option>
+      <option value="250g">Per 250 g</option>
+      <option value="500g">Per 500 g</option>
+      <option value="kg">Per Kg</option>
+    </>
+  )}
+
+  {form.category === "Festival Special" && (
+    <>
+      <option value="piece">Per Piece</option>
+      <option value="pack">Per Pack</option>
+    </>
+  )}
+</select>
           <input
             className="input"
             required
