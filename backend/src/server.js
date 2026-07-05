@@ -70,6 +70,19 @@ app.get("/api/health", (_req, res) => {
   res.json({ status: "ok", service: "Odisha Pitha Marketplace API" });
 });
 
+// TEMPORARY DEBUG ROUTE — remove once the DB mismatch is resolved
+app.get("/api/debug-db", async (_req, res) => {
+  try {
+    const dbInfo = await query(
+      "SELECT DATABASE() AS db, @@hostname AS host, @@port AS port, @@version AS version"
+    );
+    const tables = await query("SHOW TABLES");
+    res.json({ dbInfo: dbInfo[0], tableCount: tables.length, tables });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 app.post("/api/auth/register", async (req, res, next) => {
   try {
     const { name, email, password } = req.body;
@@ -299,13 +312,35 @@ app.post("/api/orders", auth, async (req, res, next) => {
         appliedCouponCode = coupon.code;
       }
     }
-    const total = Math.max(0, itemsTotal - discount);
+    const settingsRows = await query("SELECT `key`, value FROM settings");
+    const settings = Object.fromEntries(settingsRows.map((r) => [r.key, Number(r.value)]));
+    const packagingCost = settings.packaging_cost ?? 0;
+    const freeShippingAbove = settings.free_shipping_above ?? 0;
+    const shippingCost =
+      freeShippingAbove > 0 && itemsTotal > freeShippingAbove ? 0 : settings.shipping_cost ?? 0;
+    const gstRate = (settings.gst_rate ?? 0) / 100;
+
+    const taxableAmount = Math.max(0, itemsTotal - discount);
+    const tax = Math.round(taxableAmount * gstRate * 100) / 100;
+
+    const total = Math.max(0, taxableAmount + tax + shippingCost + packagingCost);
 
     const orderNumber = `ODP-${Date.now()}`;
     const result = await query(
-      `INSERT INTO orders (user_id, order_number, payment_status, total, coupon_code, discount, shipping_address)
-       VALUES (:userId, :orderNumber, :paymentStatus, :total, :couponCode, :discount, :shippingAddress)`,
-      { userId: req.user.id, orderNumber, paymentStatus, total, couponCode: appliedCouponCode, discount, shippingAddress }
+      `INSERT INTO orders (user_id, order_number, payment_status, total, coupon_code, discount, tax, shipping_cost, packaging_cost, shipping_address)
+       VALUES (:userId, :orderNumber, :paymentStatus, :total, :couponCode, :discount, :tax, :shippingCost, :packagingCost, :shippingAddress)`,
+      {
+        userId: req.user.id,
+        orderNumber,
+        paymentStatus,
+        total,
+        couponCode: appliedCouponCode,
+        discount,
+        tax,
+        shippingCost,
+        packagingCost,
+        shippingAddress
+      }
     );
     const orderId = result.insertId;
     for (const item of items) {
@@ -330,7 +365,7 @@ app.post("/api/orders", auth, async (req, res, next) => {
       "INSERT INTO admin_notifications (order_id, message) VALUES (:orderId, :notifMsg)",
       { orderId, notifMsg }
     );
-    res.status(201).json({ id: orderId, orderNumber, total });
+    res.status(201).json({ id: orderId, orderNumber, total, discount, tax, shippingCost, packagingCost });
   } catch (error) {
     next(error);
   }
@@ -362,7 +397,8 @@ app.get("/api/admin/stats", auth, adminOnly, async (_req, res, next) => {
     const [users] = await query("SELECT COUNT(*) AS users FROM users");
     const [products] = await query("SELECT COUNT(*) AS products FROM products");
     const recentOrders = await query(
-      `SELECT o.id, o.order_number, o.total, o.shipping_address, o.created_at,
+      `SELECT o.id, o.order_number, o.total, o.discount, o.tax, o.shipping_cost, o.packaging_cost,
+          o.coupon_code, o.payment_status, o.shipping_address, o.created_at,
           u.name AS customer_name
    FROM orders o
    JOIN users u ON u.id = o.user_id
@@ -476,7 +512,8 @@ app.get("/api/admin/orders-by-date", auth, adminOnly, async (req, res, next) => 
     const { date } = req.query;
     if (!date) return res.status(400).json({ message: "Date is required" });
     const orders = await query(
-      `SELECT o.id, o.order_number, o.total, o.created_at,
+      `SELECT o.id, o.order_number, o.total, o.discount, o.tax, o.shipping_cost, o.packaging_cost,
+              o.coupon_code, o.payment_status, o.shipping_address, o.created_at,
               u.name AS customer_name, u.email AS customer_email
        FROM orders o
        JOIN users u ON u.id = o.user_id
@@ -580,6 +617,50 @@ app.patch("/api/admin/coupons/:id/visibility", auth, adminOnly, async (req, res,
     const next_visible = existing[0].is_visible ? 0 : 1;
     await query("UPDATE coupons SET is_visible = :v WHERE id = :id", { v: next_visible, id: req.params.id });
     res.json({ message: "Visibility toggled", is_visible: next_visible });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Public: store-wide fee settings needed by the checkout page
+app.get("/api/settings", async (_req, res, next) => {
+  try {
+    const rows = await query("SELECT `key`, value FROM settings");
+    const settings = Object.fromEntries(rows.map((r) => [r.key, Number(r.value)]));
+    res.json(settings);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Admin: same data via an admin-only route
+app.get("/api/admin/settings", auth, adminOnly, async (_req, res, next) => {
+  try {
+    const rows = await query("SELECT `key`, value FROM settings");
+    const settings = Object.fromEntries(rows.map((r) => [r.key, Number(r.value)]));
+    res.json(settings);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Admin: update one or more settings at once, e.g. { packaging_cost: 35, shipping_cost: 60 }
+app.put("/api/admin/settings", auth, adminOnly, async (req, res, next) => {
+  try {
+    const entries = Object.entries(req.body || {});
+    if (!entries.length) return res.status(400).json({ message: "No settings provided" });
+
+    for (const [key, value] of entries) {
+      const numeric = Number(value);
+      if (Number.isNaN(numeric) || numeric < 0) {
+        return res.status(400).json({ message: `Invalid value for ${key}` });
+      }
+      await query(
+        "INSERT INTO settings (`key`, value) VALUES (:key, :value) ON DUPLICATE KEY UPDATE value = :value",
+        { key, value: numeric }
+      );
+    }
+    res.json({ message: "Settings updated" });
   } catch (error) {
     next(error);
   }

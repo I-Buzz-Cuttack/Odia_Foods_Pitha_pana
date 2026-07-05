@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api/axios";
 import { useCart } from "../store/CartContext";
@@ -15,11 +15,29 @@ export default function Checkout() {
   const [couponStatus, setCouponStatus] = useState(null);
   const [couponError, setCouponError] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState(null);
+  const [settings, setSettings] = useState({
+    packaging_cost: 0,
+    shipping_cost: 0,
+    free_shipping_above: 0,
+    gst_rate: 0,
+  });
 
-  const deliveryCharge = total > 499 ? 0 : 49;
-  const preDiscountPayable = total + 30 + deliveryCharge;
+  useEffect(() => {
+    api.get("/settings").then(({ data }) => setSettings(data)).catch(() => {});
+  }, []);
+
+  const packagingCost = Number(settings.packaging_cost) || 0;
+  const freeShippingAbove = Number(settings.free_shipping_above) || 0;
+  const shippingCost =
+    freeShippingAbove > 0 && total > freeShippingAbove ? 0 : Number(settings.shipping_cost) || 0;
+  const gstRate = (Number(settings.gst_rate) || 0) / 100;
+
   const discount = appliedCoupon?.discount || 0;
-  const payable = Math.max(0, preDiscountPayable - discount);
+  const taxableAmount = Math.max(0, total - discount);
+  const tax = taxableAmount * gstRate;
+  const payable = taxableAmount + tax + shippingCost + packagingCost;
+  // amount the coupon percentage/flat discount is calculated against
+  const preDiscountPayable = total + packagingCost + shippingCost;
 
   const handleApplyCoupon = async (event) => {
     event.preventDefault();
@@ -112,12 +130,26 @@ export default function Checkout() {
           <div className="mt-5 space-y-2 border-t border-temple/10 pt-5 text-sm">
             <div className="flex justify-between">
               <span>Subtotal</span>
-              <span>{money(preDiscountPayable)}</span>
+              <span>{money(total)}</span>
+            </div>
+            <div className="flex justify-between text-ink/70">
+              <span>Packaging</span>
+              <span>{money(packagingCost)}</span>
+            </div>
+            <div className="flex justify-between text-ink/70">
+              <span>Shipping</span>
+              <span>{shippingCost === 0 ? "Free" : money(shippingCost)}</span>
             </div>
             {discount > 0 && (
               <div className="flex justify-between text-sindoor">
                 <span>Coupon discount</span>
                 <span>-{money(discount)}</span>
+              </div>
+            )}
+            {gstRate > 0 && (
+              <div className="flex justify-between text-ink/70">
+                <span>GST ({settings.gst_rate}%)</span>
+                <span>{money(tax)}</span>
               </div>
             )}
           </div>

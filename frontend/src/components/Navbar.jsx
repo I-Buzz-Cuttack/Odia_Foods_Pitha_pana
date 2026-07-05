@@ -142,6 +142,11 @@ export default function Navbar() {
               Admin
             </NavLink>
           )}
+          {isAdmin && (
+            <NavLink to="/admin/manage" className="text-sm font-semibold text-temple">
+              Manage
+            </NavLink>
+          )}
         </div>
 
         <div className="hidden items-center gap-3 md:flex">
@@ -203,6 +208,14 @@ export default function Navbar() {
                 className="rounded-md px-3 py-2 font-semibold text-temple"
               >
                 Admin
+              </Link>
+            )}
+            {isAdmin && (
+              <Link
+                to="/admin/manage"
+                className="rounded-md px-3 py-2 font-semibold text-temple"
+              >
+                Manage Store
               </Link>
             )}
             <Link
