@@ -13,6 +13,8 @@ export default function SettingsManager() {
     shipping_cost: 0,
     free_shipping_above: 0,
     gst_rate: 0,
+    store_discount_percent: 0,
+    store_discount_flat: 0,
   });
 
   const load = async () => {
@@ -25,6 +27,8 @@ export default function SettingsManager() {
         shipping_cost: data.shipping_cost ?? 0,
         free_shipping_above: data.free_shipping_above ?? 0,
         gst_rate: data.gst_rate ?? 0,
+        store_discount_percent: data.store_discount_percent ?? 0,
+        store_discount_flat: data.store_discount_flat ?? 0,
       });
     } catch (err) {
       setError(err.response?.data?.message || "Could not load settings.");
@@ -48,6 +52,8 @@ export default function SettingsManager() {
         shipping_cost: Number(form.shipping_cost),
         free_shipping_above: Number(form.free_shipping_above),
         gst_rate: Number(form.gst_rate),
+        store_discount_percent: Number(form.store_discount_percent),
+        store_discount_flat: Number(form.store_discount_flat),
       });
       setMessage("Settings updated.");
     } catch (err) {
@@ -66,10 +72,10 @@ export default function SettingsManager() {
       >
         <div>
           <h2 className="font-display text-2xl font-bold text-temple">
-            Shipping & Packaging Settings
+            Shipping, Packaging & Discount Settings
           </h2>
           <p className="mt-2 text-sm text-ink/65">
-            These fees apply automatically to every new order at checkout.
+            These fees and discounts apply automatically to every new order at checkout.
           </p>
         </div>
         <ChevronDown
@@ -134,7 +140,7 @@ export default function SettingsManager() {
                   <span className="mb-1 block font-semibold text-ink/70">
                     GST Rate (%)
                   </span>
-                  <input
+                                    <input
                     className="input"
                     type="number"
                     min="0"
@@ -143,6 +149,46 @@ export default function SettingsManager() {
                     value={form.gst_rate}
                     onChange={(e) => setForm({ ...form, gst_rate: e.target.value })}
                   />
+                </label>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2 border-t border-temple/10 pt-4">
+                <label className="text-sm">
+                  <span className="mb-1 block font-semibold text-ink/70">
+                    Store-wide Discount (%)
+                  </span>
+                  <input
+                    className="input"
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    value={form.store_discount_percent}
+                    onChange={(e) =>
+                      setForm({ ...form, store_discount_percent: e.target.value })
+                    }
+                  />
+                  <span className="mt-1 block text-xs text-ink/45">
+                    Applied automatically to every order's item total.
+                  </span>
+                </label>
+                <label className="text-sm">
+                  <span className="mb-1 block font-semibold text-ink/70">
+                    Store-wide Flat Discount (₹)
+                  </span>
+                  <input
+                    className="input"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.store_discount_flat}
+                    onChange={(e) =>
+                      setForm({ ...form, store_discount_flat: e.target.value })
+                    }
+                  />
+                  <span className="mt-1 block text-xs text-ink/45">
+                    Flat ₹ off, added on top of the percentage discount.
+                  </span>
                 </label>
               </div>
 

@@ -128,6 +128,11 @@ export default function ProductDetails() {
                     <span className="ml-1 text-base font-medium text-ink/50">/ {product.price_unit.replace("Per ", "")}</span>
                   )}
                 </p>
+                {quantity > 1 && (
+                  <p className="mt-1 text-sm font-semibold text-sindoor">
+                    Total for {quantity}: {money(Number(product.price) * quantity)}
+                  </p>
+                )}
               </div>
               <div className="text-right text-sm text-ink/65">
                 <p>Manufactured: {dateText(product.manufacturing_date)}</p>

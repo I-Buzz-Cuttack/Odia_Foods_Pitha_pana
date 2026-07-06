@@ -6,6 +6,7 @@ import helmet from "helmet";
 import jwt from "jsonwebtoken";
 import rateLimit from "express-rate-limit";
 import Razorpay from "razorpay";
+import crypto from "crypto";
 import { adminOnly, auth } from "./middleware/auth.js";
 import { query } from "./config/db.js";
 import fs from "fs/promises";
@@ -288,6 +289,30 @@ app.post("/api/payments/razorpay-order", auth, async (req, res, next) => {
   }
 });
 
+// Verifies the payment before we let the frontend proceed to create the order.
+// "demo" provider (or missing keys) always passes — used for GPay/PhonePe demo buttons.
+app.post("/api/payments/verify", auth, async (req, res, next) => {
+  try {
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, provider } = req.body;
+
+    if (!process.env.RAZORPAY_KEY_ID || provider === "demo") {
+      return res.json({ verified: true, mode: "demo" });
+    }
+
+    const expectedSignature = crypto
+      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+      .update(`${razorpay_order_id}|${razorpay_payment_id}`)
+      .digest("hex");
+
+    if (expectedSignature !== razorpay_signature) {
+      return res.status(400).json({ verified: false, message: "Payment verification failed" });
+    }
+    res.json({ verified: true, mode: "razorpay" });
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.post("/api/orders", auth, async (req, res, next) => {
   try {
     const { items, shippingAddress, paymentStatus = "Paid", couponCode = null } = req.body;
@@ -319,6 +344,14 @@ app.post("/api/orders", auth, async (req, res, next) => {
     const shippingCost =
       freeShippingAbove > 0 && itemsTotal > freeShippingAbove ? 0 : settings.shipping_cost ?? 0;
     const gstRate = (settings.gst_rate ?? 0) / 100;
+
+    // Store-wide admin discount (applies on top of any coupon)
+    const storeDiscountPercent = settings.store_discount_percent ?? 0;
+    const storeDiscountFlat = settings.store_discount_flat ?? 0;
+    const storeDiscount = (itemsTotal * storeDiscountPercent) / 100 + storeDiscountFlat;
+
+    discount = Math.max(0, Math.min(discount + storeDiscount, itemsTotal));
+    discount = Math.round(discount * 100) / 100;
 
     const taxableAmount = Math.max(0, itemsTotal - discount);
     const tax = Math.round(taxableAmount * gstRate * 100) / 100;

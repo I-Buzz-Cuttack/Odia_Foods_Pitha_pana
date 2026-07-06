@@ -2,10 +2,15 @@ import { FileText, PackageSearch } from "lucide-react";
 import { useEffect, useState } from "react";
 import api from "../api/axios";
 import { dateText, money } from "../utils/format";
+import { useAuth } from "../store/AuthContext";
+import InvoicePrintModal from "../components/InvoicePrintModal";
 
 export default function Orders() {
+  const { user } = useAuth();
   const [orders, setOrders] = useState([]);
   const [invoice, setInvoice] = useState(null);
+  const [invoiceOrder, setInvoiceOrder] = useState(null);
+  const [showModal, setShowModal] = useState(false);
 
   useEffect(() => {
     api.get("/orders").then(({ data }) => setOrders(data)).catch(() => setOrders([]));
@@ -14,6 +19,11 @@ export default function Orders() {
   const loadInvoice = async (id) => {
     const { data } = await api.get(`/orders/${id}/invoice`);
     setInvoice(data);
+    setInvoiceOrder({
+      ...data.order,
+      items: data.items,
+      customer_name: user?.name || "Customer",
+    });
   };
 
   return (
@@ -49,7 +59,7 @@ export default function Orders() {
             <div className="mt-5 text-sm">
               <p className="font-bold">{invoice.invoiceNumber}</p>
               <p className="mt-1 text-ink/60">{invoice.order.order_number}</p>
-              <div className="mt-5 grid gap-3">
+               <div className="mt-5 grid gap-3">
                 {invoice.items.map((item) => (
                   <div key={item.id} className="flex justify-between gap-3">
                     <span>{item.product_name} x {item.quantity}</span>
@@ -57,16 +67,44 @@ export default function Orders() {
                   </div>
                 ))}
               </div>
+              {Number(invoice.order.discount) > 0 && (
+                <div className="mt-3 flex justify-between text-sindoor">
+                  <span>Discount{invoice.order.coupon_code ? ` (${invoice.order.coupon_code})` : ""}</span>
+                  <span>- {money(invoice.order.discount)}</span>
+                </div>
+              )}
+              <div className="mt-2 flex justify-between text-ink/70">
+                <span>Packaging</span>
+                <span>{money(invoice.order.packaging_cost)}</span>
+              </div>
+              <div className="mt-2 flex justify-between text-ink/70">
+                <span>Shipping</span>
+                <span>{Number(invoice.order.shipping_cost) === 0 ? "Free" : money(invoice.order.shipping_cost)}</span>
+              </div>
+              <div className="mt-2 flex justify-between text-ink/70">
+                <span>GST</span>
+                <span>{money(invoice.order.tax)}</span>
+              </div>
               <div className="mt-5 flex justify-between border-t border-temple/10 pt-5 text-lg font-bold">
                 <span>Total</span>
                 <span>{money(invoice.order.total)}</span>
               </div>
+              <button
+                onClick={() => setShowModal(true)}
+                className="btn-secondary mt-5 w-full py-2"
+              >
+                <FileText size={16} /> Open Full Invoice / Print
+              </button>
             </div>
           ) : (
             <p className="mt-4 text-ink/65">Select an order to preview invoice details.</p>
           )}
         </aside>
       </div>
+
+      {showModal && invoiceOrder && (
+        <InvoicePrintModal order={invoiceOrder} onClose={() => setShowModal(false)} />
+      )}
     </section>
   );
 }

@@ -230,11 +230,14 @@ CREATE TABLE IF NOT EXISTS settings (
   `key`   VARCHAR(60) PRIMARY KEY,
   value   DECIMAL(10,2) NOT NULL DEFAULT 0
 );
+
 INSERT IGNORE INTO settings (`key`, value) VALUES
   ('packaging_cost', 30),
   ('shipping_cost', 49),
   ('free_shipping_above', 499),
-  ('gst_rate', 18);
+  ('gst_rate', 18),
+  ('store_discount_percent', 0),
+  ('store_discount_flat', 0);
 
 CREATE TABLE IF NOT EXISTS order_items (
   id INT AUTO_INCREMENT PRIMARY KEY,

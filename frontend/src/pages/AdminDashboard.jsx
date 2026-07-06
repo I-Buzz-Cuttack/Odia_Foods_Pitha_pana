@@ -1,10 +1,26 @@
-import {BarChart3,Boxes,CalendarDays,IndianRupee,TrendingUp,Users,} from "lucide-react";
+import {
+  BarChart3,
+  Boxes,
+  CalendarDays,
+  IndianRupee,
+  TrendingUp,
+  Users,
+} from "lucide-react";
 import { useEffect, useState } from "react";
-import {Area,AreaChart,CartesianGrid,ResponsiveContainer,Tooltip,XAxis,YAxis,} from "recharts";
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { Link } from "react-router-dom";
 import api from "../api/axios";
 import { money } from "../utils/format";
 import InvoicePrintModal from "../components/InvoicePrintModal";
+import SettingsManager from "../components/admin/SettingsManager";
 
 const CustomTooltip = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
@@ -92,11 +108,26 @@ export default function AdminDashboard() {
     [Boxes, "Products", stats?.products || 0],
   ];
 
+  const StatusBadge = ({ status }) => {
+    const isPaid = String(status).toLowerCase() === "paid";
+    return (
+      <span
+        className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
+          isPaid ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"
+        }`}
+      >
+        {isPaid ? "Paid" : "Pending"}
+      </span>
+    );
+  };
+
   const totalChartSales = chartData.reduce((s, d) => s + d.sales, 0);
   const totalChartOrders = chartData.reduce((s, d) => s + d.orders, 0);
 
   return (
     <section className="container-page py-12">
+      <SettingsManager />
+
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <p className="font-semibold uppercase tracking-[0.2em] text-clay">
@@ -360,7 +391,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* Recent Orders + Admin Features */}
-      <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_380px]">
+      <div className="mt-6 grid gap-6">
         <section className="rounded-xl border border-temple/10 bg-white p-6 shadow-sm">
           <h2 className="font-display text-xl font-bold text-temple">
             Recent Orders
@@ -373,9 +404,14 @@ export default function AdminDashboard() {
                   className="rounded-lg border border-temple/15 bg-white px-4 py-4 shadow-sm"
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-semibold text-temple">
-                      {order.order_number}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold text-temple">
+                        {order.order_number}
+                      </span>
+                      <StatusBadge
+                        status={order.payment_status || order.status}
+                      />
+                    </div>
                     <span className="text-sm font-bold text-temple">
                       {money(order.total)}
                     </span>
@@ -415,7 +451,7 @@ export default function AdminDashboard() {
             )}
           </div>
         </section>
-        <section className="rounded-xl border border-temple/10 bg-white p-6 shadow-sm">
+        {/* <section className="rounded-xl border border-temple/10 bg-white p-6 shadow-sm">
           <h2 className="font-display text-xl font-bold text-temple">
             Admin Features
           </h2>
@@ -436,7 +472,7 @@ export default function AdminDashboard() {
               product metadata.
             </p>
           </div>
-        </section>
+        </section> */}
       </div>
 
       {selectedOrder && (
